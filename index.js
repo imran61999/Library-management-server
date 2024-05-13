@@ -31,6 +31,11 @@ async function run() {
     const booksCollection = client.db('library').collection('books');
     const categoryCollection = client.db('library').collection('category');
 
+    // category related api
+    app.get('/category',async(req, res)=>{
+      const category = await categoryCollection.find().toArray();
+      res.send(category)
+    })
 
     // books related api
     app.get('/books', async(req, res)=>{
@@ -48,9 +53,26 @@ async function run() {
     // books read for update
     app.get('/updateBook/:id', async(req, res) =>{
       const id = req.params.id;
-      console.log(id)
+      // console.log(id)
       const query ={ _id: new ObjectId(id)}
       const result = await booksCollection.findOne(query);
+      res.send(result)
+    })
+    app.put('/update/:id', async(req, res) =>{
+      const id = req.params.id;
+      console.log('id for update ',id)
+      const updateBook = req.body;
+      const filter= {_id: new ObjectId(id)}
+      const option = { upsert: true }
+      const book ={
+        $set:{
+          image: updateBook.image, book_name:updateBook.book_name,
+           author_name:updateBook.author_name, category_name:updateBook.category_name,
+            rating:updateBook.rating, quantity:updateBook.quantity,
+            description:updateBook.description
+        }
+      }
+      const result = await booksCollection.updateOne(filter, book, option)
       res.send(result)
     })
 
