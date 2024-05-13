@@ -36,6 +36,13 @@ async function run() {
       const category = await categoryCollection.find().toArray();
       res.send(category)
     })
+    // same category data
+    app.get('/sameCategory/:category', async(req, res)=>{
+      const mainCategory= req.params.category;
+      const query ={category: mainCategory}
+      const result = await booksCollection.find(query).toArray();
+      res.send(result)
+    })
 
     // books related api
     app.get('/books', async(req, res)=>{
