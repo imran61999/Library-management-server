@@ -1,5 +1,6 @@
 const express = require('express')
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 
@@ -7,7 +8,12 @@ const app=express();
 const port = process.env.PORT || 5000;
 
 // middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173'
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 
@@ -25,12 +31,31 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     // const userCollection = client.db('juteDB').collection('user');
     const booksCollection = client.db('library').collection('books');
     const categoryCollection = client.db('library').collection('category');
     const borrowCollection = client.db('library').collection('borrowed');
+
+
+    // auth related api
+    app.post('/jwt', async(req, res)=>{
+      const user = req.body;
+      console.log('user for token', user);
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn:'1hr'})
+      res.cookie('token', token, {
+        httpOnly:true,
+        secure: true,
+        sameSite:'none'
+      })
+      .send({success: true})
+    })
+
+    app.post('/delete', async(req, res)=>{
+      const user = req.body;
+      res.clearCookie('token',{maxAge:0 }).send({success:true})
+    })
 
     // category related api
     app.get('/category',async(req, res)=>{
@@ -47,10 +72,10 @@ async function run() {
     // same category data
     app.get('/sameCategory/:category', async(req, res)=>{
       const mainCategory= req.params.category;
-      console.log(mainCategory)
+      // console.log(mainCategory)
       const query ={category_name: mainCategory}
       const result = await booksCollection.find(query).toArray();
-      console.log(result);
+      // console.log(result);
       res.send(result)
     })
 
@@ -61,12 +86,15 @@ async function run() {
     })
     
     app.post('/books', async(req, res) =>{
-      const books = req.body;
-      console.log(books);
-      const result = await booksCollection.insertOne(books);
+      const book = req.body;
+      // Convert quantity and rating to integers
+      book.quantity = parseInt(book.quantity);
+      book.rating = parseInt(book.rating);
+      const result = await booksCollection.insertOne(book);
       res.send(result);
     })
 
+    // particular user
     app.get('/borrow/books', async(req, res)=>{
       const email = req.query.email;
       const query ={user: email};
@@ -75,11 +103,17 @@ async function run() {
     })
     app.post('/borrow/books', async(req, res)=>{
       const borrowInfo = req.body;
+      const { userId, user } = borrowInfo;
+      console.log('userid',userId,'user', user)
+      
+      // Check if the book already exists for the user
+      const existingBorrowedBook = await borrowCollection.findOne({ userId, user });
+      if (existingBorrowedBook) {
+          return res.status(400).send({ error: 'You have already borrowed this book' });
+      }
       const result = await borrowCollection.insertOne(borrowInfo);
       res.send(result)
     })
-
-
 
     // books read for update
     app.get('/updateBook/:id', async(req, res) =>{
@@ -94,7 +128,7 @@ async function run() {
       const id = req.params.id;
       const query = {_id: new ObjectId(id)}
       const result = await booksCollection.updateOne(query, { $inc: {quantity:-1}})
-      console.log(result);
+      // console.log(result);
       res.send(result)
     })
     // increase
@@ -102,7 +136,7 @@ async function run() {
       const id = req.params.id;
       const query = {_id: new ObjectId(id)}
       const result = await booksCollection.updateOne(query, { $inc: {quantity:1}})
-      console.log(result);
+      // console.log(result);
       res.send(result)
     })
 
@@ -115,8 +149,10 @@ async function run() {
 
     app.put('/update/:id', async(req, res) =>{
       const id = req.params.id;
-      console.log('id for update ',id)
+      // console.log('id for update ',id)
       const updateBook = req.body;
+      updateBook.quantity = parseInt(updateBook.quantity);
+      updateBook.rating = parseInt(updateBook.rating);
       const filter= {_id: new ObjectId(id)}
       const option = { upsert: true }
       const book ={
@@ -132,7 +168,7 @@ async function run() {
     })
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
