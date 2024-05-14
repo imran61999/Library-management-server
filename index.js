@@ -106,6 +106,13 @@ async function run() {
       res.send(result)
     })
 
+    app.delete('/borrowedBooks/:id', async(req, res)=>{
+      const id = req.params.id;
+      const query ={_id: id};
+      const result = await borrowCollection.deleteOne(query)
+      res.send(result)
+    })
+
     app.put('/update/:id', async(req, res) =>{
       const id = req.params.id;
       console.log('id for update ',id)
